@@ -722,6 +722,7 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
   if(!Array.isArray(manutencao.orders))throw Error('manutencao.json precisa conter a lista orders');
   if(dados.rows.some(r=>!r.date||!r.unit||!r.prefix||!r.category))throw Error('Há registros incompletos em dados.json');
   allRows=deduplicate(dados.rows.map(r=>({...r,unit:r.unit||'Ponta Grossa'})));
+  if(allRows.length!==dados.rows.length)throw new Error('Inconsistência de registros: JSON possui '+dados.rows.length+' linhas, mas '+allRows.length+' são únicas pela chave de intervalo.');
   MAINTENANCE_ORDERS=manutencao.orders;
   populate();
   const datas=allRows.map(r=>r.date).filter(Boolean).sort();
