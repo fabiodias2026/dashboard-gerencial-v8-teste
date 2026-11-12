@@ -659,7 +659,7 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
  // Esta seção não usa os filtros de data, turno ou ociosidade das demais análises.
  const snapshotPanel=document.createElement('section');
  snapshotPanel.className='card garage-panel';
- snapshotPanel.innerHTML=`<div class="garage-head"><div><h2>Frota registrada por unidade</h2><p class="sub">Prefixos distintos no último dia disponível de cada unidade, incluindo registros com 0% de ociosidade.</p></div><div class="snapshot-select"><label for="snapshotCategory">Categoria da frota</label><select id="snapshotCategory"><option value="">Todas as categorias</option></select></div></div><div id="snapshotDistribution" class="garage-grid" aria-live="polite"></div><p class="help">A data de referência aparece em cada garagem. Veículos presentes em duas unidades podem ser contados em ambas; estes números representam presença no CSV, não a frota física total.</p>`;
+ snapshotPanel.innerHTML=`<div class="garage-head"><div><h2>Veículos com ociosidade por unidade</h2><p class="sub">Prefixos distintos com ociosidade superior a 0% na última data disponível de cada unidade.</p></div><div class="snapshot-select"><label for="snapshotCategory">Categoria da frota</label><select id="snapshotCategory"><option value="">Todas as categorias</option></select></div></div><div id="snapshotDistribution" class="garage-grid" aria-live="polite"></div><p class="help">A data de referência aparece em cada garagem. Um veículo com ociosidade em duas unidades aparece nas duas contagens; não some as garagens para obter o total de veículos distintos da empresa.</p>`;
  panes.overview.appendChild(snapshotPanel);
  const snapshotSelect=snapshotPanel.querySelector('#snapshotCategory');
  snapshotSelect.addEventListener('change',updateFleetSnapshot);
@@ -679,7 +679,7 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
    const date=latestByUnit.get(unit);
    const vehicles=new Set();
    if(date)for(const r of allRows){
-    if(r.unit===unit&&r.date===date&&(!category||r.category===category)){
+    if(r.unit===unit&&r.date===date&&Number(r.pct)>0&&(!category||r.category===category)){
      const prefix=canonicalPrefix(r);if(prefix)vehicles.add(prefix);
     }
    }
