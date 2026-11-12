@@ -73,11 +73,6 @@ footer{margin-top:14px;color:#7c8795;font-size:11px}
  .os-alert{display:inline-flex;align-items:center;gap:4px;margin-left:5px;padding:3px 7px;border-radius:7px;background:#fee2e2;color:#9f1239;border:1px solid #fda4af;font-size:11px;font-weight:800;vertical-align:middle;cursor:help;white-space:nowrap}.os-alert small{background:#be123c;color:white;border-radius:99px;padding:0 5px;font-size:10px} </style><style>
 /* Publicação: interface somente de consulta */
 header .actions,.importbar,#previewPanel,#importStatus,.history-controls,.notice,#historySummary + p {display:none!important}
-</style><style>
-.snapshot-select{min-width:220px;max-width:320px;flex:1 1 220px}
-.snapshot-date{font-size:11px;font-weight:400;color:#697b8c;margin-top:3px}
-#snapshotDistribution .garage-item{min-height:48px}
-@media(max-width:650px){.snapshot-select{max-width:none;width:100%}}
 </style></head>
 <body>
 <header><div><h1>Dashboard Gerencial • Ociosidade da Frota</h1><p>Consulta gerencial • Frota e manutenção</p></div>
@@ -655,43 +650,6 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
  panes.overview.appendChild(garagePanel);
 
  const garageNames=['Ponta Grossa','Carambeí','Castro','Arapoti','Garagem Apoio - Jaguariaíva'];
- // Fotografia operacional: a data mais recente é calculada separadamente para cada garagem.
- // Esta seção não usa os filtros de data, turno ou ociosidade das demais análises.
- const snapshotPanel=document.createElement('section');
- snapshotPanel.className='card garage-panel';
- snapshotPanel.innerHTML=`<div class="garage-head"><div><h2>Veículos com ociosidade por unidade</h2><p class="sub">Prefixos distintos com ociosidade superior a 0% na última data disponível de cada unidade.</p></div><div class="snapshot-select"><label for="snapshotCategory">Categoria da frota</label><select id="snapshotCategory"><option value="">Todas as categorias</option></select></div></div><div id="snapshotDistribution" class="garage-grid" aria-live="polite"></div><p class="help">A data de referência aparece em cada garagem. Um veículo com ociosidade em duas unidades aparece nas duas contagens; não some as garagens para obter o total de veículos distintos da empresa.</p>`;
- panes.overview.appendChild(snapshotPanel);
- const snapshotSelect=snapshotPanel.querySelector('#snapshotCategory');
- snapshotSelect.addEventListener('change',updateFleetSnapshot);
- function updateFleetSnapshot(){
-  const latestByUnit=new Map();
-  for(const r of allRows){
-   if(!r.unit||!r.date)continue;
-   const prev=latestByUnit.get(r.unit);
-   if(!prev||r.date>prev)latestByUnit.set(r.unit,r.date);
-  }
-  const cats=[...new Set(allRows.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  const selected=snapshotSelect.value;
-  snapshotSelect.innerHTML='<option value="">Todas as categorias</option>'+cats.map(c=>`<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('');
-  if(cats.includes(selected))snapshotSelect.value=selected;
-  const category=snapshotSelect.value;
-  const groups=garageNames.map(unit=>{
-   const date=latestByUnit.get(unit);
-   const vehicles=new Set();
-   if(date)for(const r of allRows){
-    if(r.unit===unit&&r.date===date&&Number(r.pct)>0&&(!category||r.category===category)){
-     const prefix=canonicalPrefix(r);if(prefix)vehicles.add(prefix);
-    }
-   }
-   return {unit,date,count:vehicles.size};
-  });
-  const max=Math.max(1,...groups.map(x=>x.count));
-  snapshotPanel.querySelector('#snapshotDistribution').innerHTML=groups.map(x=>{
-   const dateLabel=x.date?labelDate(x.date):'Sem CSV disponível';
-   return `<div class="garage-item"><div class="garage-name">${escapeHTML(x.unit)}<div class="snapshot-date">Referência: ${escapeHTML(dateLabel)}</div></div><div class="garage-track"><div class="garage-fill" style="width:${100*x.count/max}%"></div></div><strong>${x.count} <span>veículos</span></strong></div>`;
-  }).join('');
- }
-
  function updateGarages(){
   const source=filtered();
   const unitSelected=document.getElementById('unitFilter').value;
@@ -705,8 +663,8 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
  }
  // Acompanha os mesmos filtros e importações que atualizam os KPIs originais.
  const prevRender=render;
- render=function(){prevRender();updateGarages();updateFleetSnapshot();};
- updateGarages();updateFleetSnapshot();
+ render=function(){prevRender();updateGarages();};
+ updateGarages();
  move(chart,panes.fleet);move(vehicle,panes.fleet);if(vehicle)vehicle.classList.add('vehicle-card');
  // A visualização por categoria e turno continua calculada, mas não ocupa a tela da frota.
  if(chart)chart.style.display='none';
