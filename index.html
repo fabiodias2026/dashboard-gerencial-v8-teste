@@ -637,6 +637,7 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
  const vehicle=main.querySelector('#vehicleRows')?.closest('section.card');
  const headerActions=document.querySelector('header .actions');
  const footer=main.querySelector('footer');
+ // KPIs operacionais permanecem disponíveis para o render, sem aparecer na visão geral.
  move(kpis,panes.overview);
  // Resumo executivo: substituir tempo e percentual por distribuição da frota.
  // O indicador de frota total continua representando prefixos únicos entre unidades.
@@ -645,26 +646,39 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
  if(idleCard)idleCard.style.display='none';
  if(pctCard)pctCard.style.display='none';
  if(kpis)kpis.style.gridTemplateColumns='minmax(0,1fr)';
- const garagePanel=document.createElement('section');garagePanel.className='card garage-panel';
- garagePanel.innerHTML=`<div class="garage-head"><div><h2>Veículos por garagem</h2><p class="sub">Veículos com ociosidade na seleção. Um mesmo prefixo pode aparecer em mais de uma garagem.</p></div></div><div id="garageDistribution" class="garage-grid"></div><p class="help">Mostra veículos com ociosidade registrada, não a localização física atual. A soma por garagem pode ultrapassar a frota total.</p>`;
- panes.overview.appendChild(garagePanel);
-
- const garageNames=['Ponta Grossa','Carambeí','Castro','Arapoti','Garagem Apoio - Jaguariaíva'];
- function updateGarages(){
-  const source=filtered();
-  const unitSelected=document.getElementById('unitFilter').value;
-  const counts=new Map(garageNames.map(n=>[n,new Set()]));
-  for(const r of source){if(counts.has(r.unit))counts.get(r.unit).add(canonicalPrefix(r));}
-  const max=Math.max(1,...[...counts.values()].map(x=>x.size));
-  document.getElementById('garageDistribution').innerHTML=garageNames.filter(n=>!unitSelected||unitSelected==='__ARAPOTI_GRUPO__'&&['Arapoti','Garagem Apoio - Jaguariaíva'].includes(n)||unitSelected===n).map(n=>{
-   const count=counts.get(n).size;
-   return `<div class="garage-item"><div class="garage-name">${escapeHTML(n)}</div><div class="garage-track"><div class="garage-fill" style="width:${100*count/max}%"></div></div><strong>${count} <span>veículos</span></strong></div>`;
-  }).join('')||'<p class="sub">Nenhuma garagem encontrada.</p>';
+ const categoryPanel=document.createElement('section');categoryPanel.className='card garage-panel';
+ categoryPanel.innerHTML=`<div class="garage-head"><div><h2>Frota por categoria</h2><p class="sub">Composição consolidada da frota • prefixos distintos, sem duplicação por garagem ou data</p></div></div><div id="categoryDistribution" class="garage-grid"></div><p class="help" id="categoryNote">Cada veículo é contado uma vez. Categorias divergentes para o mesmo prefixo serão sinalizadas.</p>`;
+ panes.overview.appendChild(categoryPanel);
+ // A visão geral independe dos filtros operacionais das outras abas.
+ function updateCategories(){
+  const byPrefix=new Map();
+  for(const r of allRows){
+   const prefix=canonicalPrefix(r);if(!prefix)continue;
+   const cat=String(r.category||'Não informada').trim().toUpperCase()||'NÃO INFORMADA';
+   const date=String(r.date||'');
+   const prev=byPrefix.get(prefix);
+   if(!prev){byPrefix.set(prefix,{category:cat,date,categories:new Set([cat])});continue;}
+   prev.categories.add(cat);
+   if(date>prev.date){prev.category=cat;prev.date=date;}
+  }
+  const counts=new Map();let conflicts=0;
+  for(const x of byPrefix.values()){
+   counts.set(x.category,(counts.get(x.category)||0)+1);
+   if(x.categories.size>1)conflicts++;
+  }
+  const sorted=[...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR'));
+  const max=Math.max(1,...sorted.map(x=>x[1]));
+  document.getElementById('categoryDistribution').innerHTML=sorted.map(([cat,n])=>`<div class="garage-item"><div class="garage-name">${escapeHTML(cat)}</div><div class="garage-track"><div class="garage-fill" style="width:${100*n/max}%"></div></div><strong>${n} <span>veículos</span></strong></div>`).join('')||'<p class="sub">Nenhum veículo identificado.</p>';
+  const total=document.getElementById('overviewFleetTotal');if(total)total.textContent=byPrefix.size.toLocaleString('pt-BR');
+  const note=document.getElementById('categoryNote');if(note)note.textContent=conflicts?`${conflicts} prefixo(s) possuem categorias divergentes no histórico; foi utilizada a categoria do registro mais recente. A classificação deve ser conferida.`:'Cada prefixo é contado uma vez, usando sua categoria mais recente na base.';
  }
- // Acompanha os mesmos filtros e importações que atualizam os KPIs originais.
+ const overviewTotal=document.createElement('section');overviewTotal.className='card';overviewTotal.style.marginBottom='16px';overviewTotal.innerHTML='<div class="cap">Veículos na base consolidada</div><strong id="overviewFleetTotal" style="display:block;font-size:32px;margin-top:6px">—</strong><small>Prefixos distintos em todas as unidades e datas</small>';
+ panes.overview.insertBefore(overviewTotal,categoryPanel);
+ // Preserva os KPIs originais no DOM para os cálculos e a navegação, mas não os exibe na visão geral.
+ if(kpis){kpis.style.display='none';panes.fleet.prepend(kpis);}
  const prevRender=render;
- render=function(){prevRender();updateGarages();};
- updateGarages();
+ render=function(){prevRender();updateCategories();};
+ updateCategories();
  move(chart,panes.fleet);move(vehicle,panes.fleet);if(vehicle)vehicle.classList.add('vehicle-card');
  // A visualização por categoria e turno continua calculada, mas não ocupa a tela da frota.
  if(chart)chart.style.display='none';
@@ -691,12 +705,12 @@ render = function(){originalRender();maintenanceVisibleLimit=100;if(document.get
   [extra,importStatus].forEach(el=>{if(el){el.style.display='none';el.setAttribute('aria-hidden','true')}});
   [topNotice,importbar,preview,hist,note,headerActions].forEach(el=>{if(el)el.remove()});
  if(footer){footer.textContent='Dashboard Gerencial V8 • Consulta somente leitura • Dados atualizados pelo GitHub';main.appendChild(footer)}
- intro(panes.overview,'Resumo executivo','Indicadores essenciais para reuniões e acompanhamento da frota.');
+ intro(panes.overview,'Resumo executivo','Composição consolidada da frota, sem filtros operacionais.');
  intro(panes.fleet,'Análise da frota','Consulte veículos e intervalos. Expanda a seção pela seta; o selo vermelho OS indica manutenção nas datas correspondentes.');
  intro(panes.maintenance,'Manutenção × Ociosidade','Filtre OS em andamento na data ou período selecionado, por categoria e prefixo. Clique nas colunas para ordenar.');
 
  // O histórico permanece nos dados para as consultas, mas sem aba pública.
- function show(id){if(!panes[id])return; if(id==='maintenance')renderMaintenance(); Object.entries(panes).forEach(([key,p])=>p.classList.toggle('active',key===id));tabs.querySelectorAll('.tabbtn').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===id)));try{history.replaceState(null,'','#'+id)}catch(e){} }
+ function show(id){if(!panes[id])return; filters.style.display=id==='overview'?'none':''; if(id==='maintenance')renderMaintenance(); Object.entries(panes).forEach(([key,p])=>p.classList.toggle('active',key===id));tabs.querySelectorAll('.tabbtn').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===id)));try{history.replaceState(null,'','#'+id)}catch(e){} }
  tabs.addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)show(b.dataset.tab)});
  const initial=location.hash.slice(1);show(panes[initial]?initial:'overview');
 })();
